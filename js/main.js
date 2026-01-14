@@ -983,18 +983,36 @@ const placeDetails = {
 // ======================================
 
 function parseCSV(text) {
-    const lines = text.trim().split('\n');
+    if (!text || typeof text !== 'string') {
+        console.error('CSV 텍스트가 비어있거나 잘못되었습니다');
+        return [];
+    }
+    
+    const lines = text.trim().split('\n').filter(line => line.trim());
+    if (lines.length === 0) {
+        console.error('CSV 파일이 비어있습니다');
+        return [];
+    }
+    
     const headers = lines[0].split(',').map(h => h.trim());
     const data = [];
+    
     for (let i = 1; i < lines.length; i++) {
-        if (!lines[i].trim()) continue;
-        const values = lines[i].split(',');
+        const line = lines[i].trim();
+        if (!line) continue;
+        
+        const values = line.split(',');
         const row = {};
+        
         headers.forEach((header, index) => {
-            row[header] = values[index] ? values[index].trim() : '';
+            const value = values[index];
+            row[header] = value ? value.trim() : '';
         });
+        
         data.push(row);
     }
+    
+    console.log('CSV 파싱 완료:', data.length, '행');
     return data;
 }
 
@@ -1145,10 +1163,7 @@ function drawBoxPlotsFromCSV(widthData, stepData, slopeData) {
 }
 
 function initializeCharts() {
-        let currentPlace = null;
-        let sortedPlaces = [];
-        
-        const nameMap = {};
+        // 전역 변수 사용 (중복 선언 제거)
         
         const northOrder = [
             'SK브로드밴드', 'NH농협은행', '네이버스퀘어광주', '518민주화운동기록관',
@@ -2008,3 +2023,374 @@ const sbValues = [
 
 }
 }
+
+
+// ========== 전역 변수 및 설정 ==========
+let currentPlace = null;
+let sortedPlaces = [];
+const nameMap = {};
+
+const northOrder = [
+    'SK브로드밴드', 'NH농협은행', '네이버스퀘어광주', '518민주화운동기록관',
+    'NH투자증권', '루이까스텔', '대한치과', '토탈공인중개사사무소',
+    '커피리나', '광주시립미술관', '센스플라워', '아이스마트',
+    'GS25금남센터시티점', '한국투자증권', '하나은행', '전일빌딩', '엘리베이터'
+];
+
+const southOrder = [
+    '금남로공원', '투썸플레이스', 'SC제일은행', '우리은행',
+    '흥국화재빌딩', '금고제작소', '유광빌딩', '아성빌딩',
+    '무등빌딩', 'TUVA', 'SKT', 'YMCA',
+    '풀덤', '노스페이스', '천하주차장'
+];
+
+let currentFilteredPlaces = [];
+let currentFilterIndex = 0;
+
+// filterByStatus 함수
+function filterByStatus(status) {
+            let filteredPlaces = data.places.filter(place => {
+                if (status === '긴급조치') {
+                    return place.상태.includes('긴급');
+                } else if (status === '개선(장기)') {
+                    return place.상태.includes('개선');
+                } else {
+                    return place.상태 === status;
+                }
+            });
+            
+            if (filteredPlaces.length === 0) {
+                alert(`${status} 상태의 장소가 없습니다.`);
+                return;
+            }
+            
+            currentFilteredPlaces = filteredPlaces;
+            currentFilterIndex = 0;
+            
+            document.querySelectorAll('.place-btn').forEach(btn => {
+                const isFiltered = filteredPlaces.some(p => p.장소 === btn.dataset.placeName);
+                btn.classList.toggle('active', isFiltered);
+            });
+            
+            const avgPlace = calculateAverageForPlaces(filteredPlaces, status);
+            currentPlace = avgPlace;
+            
+            updateDetailInfoForMultiplePlaces(filteredPlaces, status);
+            updateDeviationChart();
+            
+            document.querySelector('.place-selector').scrollIntoView({ behavior: 'smooth', block: 'center' });
+            
+            const header = document.querySelector('.place-selector h2');
+            if (header) {
+                header.textContent = `장소 선택`;
+            }
+        }
+
+// calculateAverageForPlaces 함수
+function calculateAverageForPlaces(places, status) {
+            const validWidth = places.filter(p => p.유효폭.값 !== null);
+            const validSlope = places.filter(p => p.기울기.값 !== null);
+            const validStep = places.filter(p => p.단차.값 !== null);
+            
+            const avgWidth = validWidth.length > 0 
+                ? Math.round((validWidth.reduce((sum, p) => sum + p.유효폭.값, 0) / validWidth.length) * 100) / 100
+                : null;
+            const avgSlope = validSlope.length > 0
+                ? Math.round((validSlope.reduce((sum, p) => sum + p.기울기.값, 0) / validSlope.length) * 100) / 100
+                : null;
+            const avgStep = validStep.length > 0
+                ? Math.round((validStep.reduce((sum, p) => sum + p.단차.값, 0) / validStep.length) * 100) / 100
+                : null;
+            
+            const standards = data.standards;
+            
+            return {
+                장소: `${status} (${places.length}개 평균)`,
+                상태: status,
+                유효폭: {
+                    값: avgWidth,
+                    편차: avgWidth !== null ? Math.round((avgWidth - standards.유효폭_m) * 100) / 100 : null,
+                    점수: null
+                },
+                기울기: {
+                    값: avgSlope,
+                    편차: avgSlope !== null ? Math.round((avgSlope - standards.기울기_도) * 100) / 100 : null,
+                    점수: null
+                },
+                단차: {
+                    값: avgStep,
+                    편차: avgStep !== null ? Math.round((avgStep - standards.단차_cm) * 100) / 100 : null,
+                    점수: null
+                }
+            };
+        }
+
+// updateDetailInfoForMultiplePlaces 함수
+function updateDetailInfoForMultiplePlaces(places, status) {
+            const container = document.getElementById('detailInfo');
+            
+            const statusColor = status === '양호' ? '#1f883d' : (status.includes('긴급') ? '#cf222e' : '#fb8500');
+            
+            let html = `
+                <div style="margin-bottom: 1.5rem; padding: 1rem; background: #f6f8fa; border-left: 4px solid ${statusColor};">
+                    <div style="font-size: 1rem; font-weight: 700; color: #1a1a1a; margin-bottom: 0.5rem;">
+                        ${status} - ${places.length}개 장소 평균
+                    </div>
+                    <div style="font-size: 0.875rem; color: #6a737d; line-height: 1.6;">
+                        ${places.map(p => p.장소).join(', ')}
+                    </div>
+                </div>
+            `;
+            
+            const allDetails = places.map(p => {
+                const details = placeDetails[p.장소];
+                return { name: p.장소, details };
+            }).filter(item => item.details);
+            
+            if (allDetails.length > 0) {
+                html += '<div class="detail-category">';
+                html += '<div class="detail-category-title">주요 개선 필요 항목</div>';
+                
+                let issueCount = 0;
+                allDetails.forEach(item => {
+                    const issues = [];
+                    
+                    item.details['포장상태'].forEach(i => {
+                        if (i.상태 !== '양호') issues.push({ cat: '포장', text: i.설명, status: i.상태 });
+                    });
+                    item.details['점자블록'].forEach(i => {
+                        if (i.상태 !== '양호') issues.push({ cat: '점자', text: i.설명, status: i.상태 });
+                    });
+                    item.details['건물진입로'].forEach(i => {
+                        if (i.상태 !== '양호') issues.push({ cat: '진입', text: i.설명, status: i.상태 });
+                    });
+                    
+                    if (issues.length > 0) {
+                        issues.forEach(issue => {
+                            const itemStatusClass = issue.status === '양호' ? 'good' : (issue.status.includes('긴급') ? 'urgent' : 'mid');
+                            html += `
+                                <div class="detail-item ${itemStatusClass}" style="margin-bottom: 0.5rem;">
+                                    <div class="detail-item-status">${item.name}</div>
+                                    <div class="detail-item-text">[${issue.cat}] ${issue.text}</div>
+                                </div>
+                            `;
+                            issueCount++;
+                        });
+                    }
+                });
+                
+                if (issueCount === 0) {
+                    html += '<div class="detail-empty">개선이 필요한 항목이 없습니다.</div>';
+                }
+                
+                html += '</div>';
+            } else {
+                html += '<div class="detail-empty">상세 정보가 없습니다.</div>';
+            }
+            
+            container.innerHTML = html;
+        }
+
+// selectPlaceFromTable 함수
+function selectPlaceFromTable(placeName) {
+            const place = sortedPlaces.find(p => p.장소 === placeName);
+            if (place) {
+                selectPlaceByOriginalName(place.장소);
+            }
+        }
+
+// selectPlaceByOriginalName 함수
+function selectPlaceByOriginalName(originalName) {
+            const place = data.places.find(p => p.장소 === originalName);
+            if (!place) return;
+            
+            currentPlace = place;
+            document.querySelectorAll('.place-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.placeName === originalName);
+            });
+            updateDetailInfo();
+            updateDeviationChart();
+        }
+
+// updateDeviationChart 함수
+function updateDeviationChart() {
+            const container = document.getElementById('deviationBars');
+            
+            // 상태별 현황(평균)인 경우 비우고 종료
+            if (currentPlace && currentPlace.장소 && currentPlace.장소.includes('평균')) {
+                container.innerHTML = '';
+                return;
+            }
+            
+            container.innerHTML = '';
+            
+            const metrics = [
+                { name: '유효폭', value: currentPlace.유효폭.값, deviation: currentPlace.유효폭.편차, unit: 'm', max: 5, type: 'width' },
+                { name: '기울기', value: currentPlace.기울기.값, deviation: currentPlace.기울기.편차, unit: '°', max: 10, type: 'slope' },
+                { name: '단차', value: currentPlace.단차.값, deviation: currentPlace.단차.편차, unit: 'cm', max: 20, type: 'step' }
+            ];
+            
+            metrics.forEach(metric => {
+                if (metric.value === null) return;
+                
+                const item = document.createElement('div');
+                item.className = 'deviation-item';
+                
+                // -0과 0을 모두 처리
+                const isZero = metric.deviation === 0 || metric.deviation === -0 || Math.abs(metric.deviation) < 0.001;
+                const isPositive = metric.deviation > 0;
+                const isNegative = metric.deviation < 0;
+                
+                // 편차가 0이면 막대를 표시하지 않음
+                if (isZero) {
+                    item.innerHTML = `
+                        <div class="deviation-label">
+                            <span class="metric-name">${metric.name}</span>
+                            <span class="metric-value">실제: ${metric.value.toFixed(2)}${metric.unit} | 편차: 0.00${metric.unit}</span>
+                        </div>
+                        <div class="deviation-bar-wrapper">
+                            <div class="deviation-baseline"></div>
+                            <div style="position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); font-weight: 700; font-size: 1.1rem; color: #1a1a1a; background: #fff; padding: 0.25rem 0.75rem; border: 2px solid #1a1a1a;">
+                                0.0
+                            </div>
+                        </div>
+                    `;
+                    container.appendChild(item);
+                    return;
+                }
+                
+                const absDeviation = Math.abs(metric.deviation);
+                const percentage = Math.max(8, Math.min((absDeviation / metric.max) * 50, 50));
+                
+                // 막대 클래스 결정
+                // 유효폭: +편차 = 오른쪽 초록, -편차 = 왼쪽 빨강
+                // 기울기/단차: +편차 = 오른쪽 빨강, -편차 = 왼쪽 초록
+                let barClass;
+                if (metric.type === 'width') {
+                    barClass = isPositive ? 'positive' : 'negative';
+                } else {
+                    // 기울기/단차
+                    if (isPositive) {
+                        barClass = 'slope-exceed';  // 오른쪽 빨강
+                    } else {
+                        barClass = 'slope-good';    // 왼쪽 초록
+                    }
+                }
+                
+                const isLarge = percentage > 35;
+                let valueStyle;
+                if (isPositive) {
+                    valueStyle = isLarge ? 'right: 8px;' : 'left: 100%; margin-left: 8px;';
+                } else {
+                    valueStyle = isLarge ? 'left: 8px;' : 'right: 100%; margin-right: 8px;';
+                }
+                
+                item.innerHTML = `
+                    <div class="deviation-label">
+                        <span class="metric-name">${metric.name}</span>
+                        <span class="metric-value">실제: ${metric.value.toFixed(2)}${metric.unit} | 편차: ${metric.deviation > 0 ? '+' : ''}${metric.deviation.toFixed(2)}${metric.unit}</span>
+                    </div>
+                    <div class="deviation-bar-wrapper">
+                        <div class="deviation-baseline"></div>
+                        <div class="deviation-bar ${barClass}" 
+                             style="width: ${percentage}%;">
+                            <div class="deviation-value" style="${valueStyle}">
+                                ${isPositive ? '+' : ''}${metric.deviation.toFixed(1)}
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                container.appendChild(item);
+            });
+        }
+
+// updateDetailInfo 함수
+function updateDetailInfo() {
+            const container = document.getElementById('detailInfo');
+            const placeName = currentPlace.장소;
+            
+            const details = placeDetails[placeName];
+            
+            if (!details) {
+                container.innerHTML = `
+                    <div style="color: #6a737d; text-align: center; padding: 2rem;">
+                        <strong>${placeName}</strong>에 대한 상세 정보가 없습니다.
+                    </div>
+                `;
+                return;
+            }
+            
+            let html = '';
+            
+            if (details['포장상태'] && details['포장상태'].length > 0) {
+                html += '<div class="detail-category">';
+                html += '<div class="detail-category-title">포장상태</div>';
+                details['포장상태'].forEach(item => {
+                    const statusClass = item.상태 === '양호' ? 'good' : (item.상태.includes('긴급') ? 'urgent' : 'mid');
+                    const statusText = item.상태 === '양호' ? '양호' : (item.상태.includes('긴급') ? '긴급' : '개선');
+                    html += `
+                        <div class="detail-item ${statusClass}">
+                            <div class="detail-item-status">${statusText}</div>
+                            <div class="detail-item-text">${item.설명}</div>
+                        </div>
+                    `;
+                });
+                html += '</div>';
+            }
+            
+            if (details['점자블록'] && details['점자블록'].length > 0) {
+                html += '<div class="detail-category">';
+                html += '<div class="detail-category-title">점자블록</div>';
+                const uniqueItems = {};
+                details['점자블록'].forEach(item => {
+                    const key = item.설명 + item.상태;
+                    if (!uniqueItems[key]) {
+                        uniqueItems[key] = item;
+                    }
+                });
+                Object.values(uniqueItems).forEach(item => {
+                    const statusClass = item.상태 === '양호' ? 'good' : (item.상태.includes('긴급') ? 'urgent' : 'mid');
+                    const statusText = item.상태 === '양호' ? '양호' : (item.상태.includes('긴급') ? '긴급' : '개선');
+                    html += `
+                        <div class="detail-item ${statusClass}">
+                            <div class="detail-item-status">${statusText}</div>
+                            <div class="detail-item-text">${item.설명}</div>
+                        </div>
+                    `;
+                });
+                html += '</div>';
+            }
+            
+            if (details['건물진입로'] && details['건물진입로'].length > 0) {
+                html += '<div class="detail-category">';
+                html += '<div class="detail-category-title">건물 진입로</div>';
+                details['건물진입로'].forEach(item => {
+                    const statusClass = item.상태 === '양호' ? 'good' : (item.상태.includes('긴급') ? 'urgent' : 'mid');
+                    const statusText = item.상태 === '양호' ? '양호' : (item.상태.includes('긴급') ? '긴급' : '개선');
+                    html += `
+                        <div class="detail-item ${statusClass}">
+                            <div class="detail-item-status">${statusText}</div>
+                            <div class="detail-item-text">${item.설명}</div>
+                        </div>
+                    `;
+                });
+                html += '</div>';
+            }
+            
+            if (html === '') {
+                html = '<div class="detail-empty">등록된 상세 정보가 없습니다.</div>';
+            }
+            
+            container.innerHTML = html;
+        }
+
+// findPlaceByDisplayName 함수
+function findPlaceByDisplayName(displayName) {
+            for (const [original, mapped] of Object.entries(nameMap)) {
+                if (mapped === displayName) {
+                    return data.places.find(p => p.장소 === original);
+                }
+            }
+            return data.places.find(p => p.장소 === displayName);
+        }
