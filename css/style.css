@@ -1,4 +1,4 @@
-        * {
+* {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
@@ -687,22 +687,22 @@
         
         .deviation-bar.positive {
             left: 50%;
-            background: #1f883d;
+            background: #C8FFC8;
         }
         
         .deviation-bar.negative {
             right: 50%;
-            background: #cf222e;
+            background: #FFC8C8;
         }
         
         .deviation-bar.slope-exceed {
             left: 50%;
-            background: #cf222e;
+            background: #FFC8C8;
         }
         
         .deviation-bar.slope-good {
             right: 50%;
-            background: #1f883d;
+            background: #C8FFC8;
         }
         
         .deviation-value {
