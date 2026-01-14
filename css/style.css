@@ -1,4 +1,4 @@
-* {
+        * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
@@ -900,10 +900,10 @@
             z-index: 10;
         }
         
-        .table-dot.good { background: #1f883d; }
-        .table-dot.mid { background: #fb8500; }
-        .table-dot.urgent { background: #cf222e; }
-        .table-dot.none { background: #d0d7de; }
+        .table-dot.good { background: #C8FFC8; border: 1px solid #1f883d; }
+        .table-dot.mid { background: #FFFF96; border: 1px solid #fb8500; }
+        .table-dot.urgent { background: #FFC8C8; border: 1px solid #cf222e; }
+        .table-dot.none { background: #e8e8e8; border: none; }
 
     
         #dotTooltip {
