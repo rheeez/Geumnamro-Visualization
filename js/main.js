@@ -1012,7 +1012,7 @@ function parseCSV(text) {
         data.push(row);
     }
     
-    console.log('CSV 파싱 완료:', data.length, '행');
+    // CSV 파싱 완료
     return data;
 }
 
@@ -1083,7 +1083,7 @@ Promise.all([
         });
     });
     
-    console.log('✅ CSV 데이터 로드 완료:', data.places.length, '개 장소');
+    // CSV 데이터 로드 완료
     initializeCharts();
     drawBoxPlotsFromCSV(widthData, stepData, slopeData);
 }).catch(error => {
@@ -1862,7 +1862,7 @@ function initializeCharts() {
     
         
         function drawPlotlyCharts() {
-            console.log('Drawing Plotly charts...');
+            // Plotly 차트 그리기
             const places = data.places;
             
             const sbLabels = [
